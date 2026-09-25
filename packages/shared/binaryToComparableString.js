@@ -12,8 +12,19 @@
 export default function binaryToComparableString(
   view: $ArrayBufferView,
 ): string {
-  return String.fromCharCode.apply(
-    String,
-    new Uint8Array(view.buffer, view.byteOffset, view.byteLength),
-  );
+  const bytes = new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
+  // Passing every byte as an argument to fromCharCode overflows the call stack
+  // for large buffers, so we convert in chunks.
+  const CHUNK_SIZE = 8192;
+  if (bytes.length <= CHUNK_SIZE) {
+    return String.fromCharCode.apply(String, bytes);
+  }
+  let result = '';
+  for (let i = 0; i < bytes.length; i += CHUNK_SIZE) {
+    result += String.fromCharCode.apply(
+      String,
+      bytes.subarray(i, i + CHUNK_SIZE),
+    );
+  }
+  return result;
 }
