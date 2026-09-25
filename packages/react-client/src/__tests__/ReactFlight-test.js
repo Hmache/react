@@ -2511,6 +2511,41 @@ describe('ReactFlight', () => {
   });
 
   // @gate enableTaint
+  it('errors when a large tainted binary value is serialized', async () => {
+    function UserClient({user}) {
+      return <span>{user.name}</span>;
+    }
+    const User = clientReference(UserClient);
+
+    // Large enough that converting it to a string in a single
+    // String.fromCharCode.apply call would overflow the call stack.
+    const secret = new Uint32Array(256 * 1024).fill(0x3e971ecc);
+    const currentUser = {
+      name: 'Seb',
+      secret,
+    };
+    ReactServer.experimental_taintUniqueValue(
+      'Cannot pass a secret buffer to the client',
+      currentUser,
+      currentUser.secret,
+    );
+
+    function App({user}) {
+      const clone = user.secret.slice();
+      return <User secret={clone} />;
+    }
+
+    const errors = [];
+    ReactNoopFlightServer.render(<App user={currentUser} />, {
+      onError(x) {
+        errors.push(x.message);
+      },
+    });
+
+    expect(errors).toEqual(['Cannot pass a secret buffer to the client']);
+  });
+
+  // @gate enableTaint
   it('keep a tainted value tainted until the end of any pending requests', async () => {
     function UserClient({user}) {
       return <span>{user.name}</span>;
